@@ -20,7 +20,6 @@ def main(idx):
     datum = amoeba_data[idx]
 
     try:
-        """
         # Initialize amoeba
         amoeba = Amoeba(max_n_gauss=10, verbose=False, seed=1234)
         amoeba.set_prior("center", "normal", np.array([65.0, 2.0]))
@@ -63,6 +62,7 @@ def main(idx):
             "point_estimate": model.point_estimate(),
             "lnlike": model.lnlike_mean_point_estimate(),
         }
+        """
 
     except Exception as ex:
         return {"coord": datum["coord"], "exception": ex}
