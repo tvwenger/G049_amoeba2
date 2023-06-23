@@ -7,6 +7,7 @@ Trey Wenger - June 2023
 import sys
 import pickle
 import numpy as np
+from amoeba2.model import AmoebaTauModel
 from amoeba2.amoeba import Amoeba
 
 
@@ -19,8 +20,9 @@ def main(idx):
     datum = amoeba_data[idx]
 
     try:
+        """
         # Initialize amoeba
-        amoeba = Amoeba(max_n_gauss=10, verbose=True, seed=1234)
+        amoeba = Amoeba(max_n_gauss=10, verbose=False, seed=1234)
         amoeba.set_prior("center", "normal", np.array([65.0, 2.0]))
         amoeba.set_prior("log10_fwhm", "normal", np.array([0.0, 0.33]))
         amoeba.set_prior("peak_tau", "normal", np.array([0.0, 0.05]))
@@ -42,6 +44,25 @@ def main(idx):
                 "lnlike": lnlike,
             }
         return None
+        """
+        # run one model to debug
+        # Initialize the model
+        model = AmoebaTauModel(
+            n_gauss=4,  # number of components
+            seed=1234,  # random number generator seed
+            verbose=True,
+        )
+        model.set_prior("center", "normal", np.array([65.0, 2.0]))
+        model.set_prior("log10_fwhm", "normal", np.array([0.0, 0.33]))
+        model.set_prior("peak_tau", "normal", np.array([0.0, 0.05]))
+        model.add_likelihood("normal")
+        model.set_data(datum["data"])
+        model.fit(tune=500, draws=500, chains=4, cores=1)
+        return {
+            "coord": datum["coord"],
+            "point_estimate": model.point_estimate(),
+            "lnlike": model.lnlike_mean_point_estimate(),
+        }
 
     except Exception as ex:
         return {"coord": datum["coord"], "exception": ex}
