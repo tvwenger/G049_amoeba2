@@ -20,7 +20,7 @@ def main(idx):
 
     try:
         # Initialize amoeba
-        amoeba = Amoeba(max_n_gauss=10, verbose=False, seed=1234)
+        amoeba = Amoeba(max_n_gauss=10, verbose=True, seed=1234)
         amoeba.set_prior("center", "normal", np.array([65.0, 2.0]))
         amoeba.set_prior("log10_fwhm", "normal", np.array([0.0, 0.33]))
         amoeba.set_prior("peak_tau", "normal", np.array([0.0, 0.05]))
