@@ -10,25 +10,11 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --export=ALL
 #SBATCH --time 00:10:00
-#SBATCH --array 1-45
+#SBATCH --array 0-890
 
-# there are 890 pixels to fit
-NUM_JOBS=890
-
-# each "task" will fit 20 pixels
-PER_TASK=20
-
-# so there must be at least 45 tasks (--array)
-
-START_NUM=$(( ($SLURM_ARRAY_TASK_ID - 1) * $PER_TASK + 1 ))
-END_NUM=$(( $SLURM_ARRAY_TASK_ID * $PER_TASK ))
-END_NUM=$(( $END_NUM < $NUM_JOBS ? $END_NUM : $NUM_JOBS ))
-echo Task $SLURM_ARRAY_TASK_ID running $START_NUM to $END_NUM
+# N.B. update --array to match number of pixels to fit
 
 eval "$(conda shell.bash hook)"
 conda activate amoeba2
 
-for (( i=$START_NUM; i<=END_NUM; i++ )); do
-    python fit_G049_slurm.py $i
-done
-
+python fit_G049_slurm.py $SLURM_ARRAY_TASK_ID
