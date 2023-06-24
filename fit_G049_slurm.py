@@ -15,8 +15,7 @@ def main(idx):
 
     # load data
     with open(f"amoeba_data/amoeba_data_{idx}.pkl", "rb") as f:
-        amoeba_data = pickle.load(f)
-    datum = amoeba_data[idx]
+        datum = pickle.load(f)
 
     try:
         # Initialize amoeba
