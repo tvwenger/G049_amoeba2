@@ -7,12 +7,10 @@ Trey Wenger - June 2023
 import sys
 import pickle
 import numpy as np
-import tempfile
+from amoeba2.amoeba import Amoeba
 
 
 def main(idx):
-    from amoeba2.amoeba import Amoeba
-
     print(f"Starting job on idx = {idx}")
 
     # load data
@@ -50,12 +48,7 @@ def main(idx):
 
 
 if __name__ == "__main__":
-    # set temporary pytensor compiledir
-    import pytensor
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        pytensor.config.base_compiledir = tmpdir
-        output = main(int(sys.argv[1]))
+    output = main(int(sys.argv[1]))
 
     # save results
     fname = f"results/result_{sys.argv[1]}.pkl"

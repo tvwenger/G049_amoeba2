@@ -17,4 +17,7 @@
 eval "$(conda shell.bash hook)"
 conda activate amoeba2
 
-python fit_G049_slurm.py $SLURM_ARRAY_TASK_ID
+# temporary pytensor compiledir
+tmpdir=`mktemp -d`
+PYTENSOR_FLAGS="base_compiledir=$tmpdir" python fit_G049_slurm.py $SLURM_ARRAY_TASK_ID
+rmdir $tmpdir
