@@ -8,6 +8,7 @@ import sys
 import pickle
 import numpy as np
 from amoeba2.amoeba import Amoeba
+import tempfile
 import pytensor
 
 
@@ -49,10 +50,10 @@ def main(idx):
 
 
 if __name__ == "__main__":
-    # set pytensor compiledir
-    pytensor.config.compile_dir = f"pytensor/{sys.argv[1]}"
-
-    output = main(int(sys.argv[1]))
+    # set temporary pytensor compiledir
+    with tempfile.TemporaryDirectory() as tmpdir:
+        pytensor.config.base_compiledir = tmpdir
+        output = main(int(sys.argv[1]))
 
     # save results
     fname = f"results/result_{sys.argv[1]}.pkl"
