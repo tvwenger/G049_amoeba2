@@ -9,7 +9,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --export=ALL
-#SBATCH --time 00:10:00
+#SBATCH --time 12:00:00
 #SBATCH --array 0-890
 
 # N.B. update --array to match number of pixels to fit
