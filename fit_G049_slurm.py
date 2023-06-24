@@ -7,8 +7,8 @@ Trey Wenger - June 2023
 import sys
 import pickle
 import numpy as np
-from amoeba2.model import AmoebaTauModel
 from amoeba2.amoeba import Amoeba
+import pytensor
 
 
 def main(idx):
@@ -43,32 +43,15 @@ def main(idx):
                 "lnlike": lnlike,
             }
         return None
-        """
-        # run one model to debug
-        # Initialize the model
-        model = AmoebaTauModel(
-            n_gauss=4,  # number of components
-            seed=1234,  # random number generator seed
-            verbose=True,
-        )
-        model.set_prior("center", "normal", np.array([65.0, 2.0]))
-        model.set_prior("log10_fwhm", "normal", np.array([0.0, 0.33]))
-        model.set_prior("peak_tau", "normal", np.array([0.0, 0.05]))
-        model.add_likelihood("normal")
-        model.set_data(datum["data"])
-        model.fit(tune=500, draws=500, chains=4, cores=1)
-        return {
-            "coord": datum["coord"],
-            "point_estimate": model.point_estimate(),
-            "lnlike": model.lnlike_mean_point_estimate(),
-        }
-        """
 
     except Exception as ex:
         return {"coord": datum["coord"], "exception": ex}
 
 
 if __name__ == "__main__":
+    # set pytensor compiledir
+    pytensor.config.compile_dir = f"pytensor/{sys.argv[1]}"
+
     output = main(int(sys.argv[1]))
 
     # save results
