@@ -153,6 +153,11 @@ def main():
     with open("amoeba_data.pkl", "wb") as f:
         pickle.dump(amoeba_data, f)
 
+    # dump each data file to disk
+    for i, datum in enumerate(amoeba_data):
+        with open(f"/data/vla/amoeba_G049/amoeba_data_{i}.pkl", "wb") as f:
+            pickle.dump(datum, f)
+
     # plot average of spectra weighted by rms
     fig, ax = plt.subplots()
     for transition in transitions:

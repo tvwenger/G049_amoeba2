@@ -14,7 +14,7 @@ def main(idx):
     print(f"Starting job on idx = {idx}")
 
     # load data
-    with open("amoeba_data_20230622.pkl", "rb") as f:
+    with open(f"amoeba_data/amoeba_data_{idx}.pkl", "rb") as f:
         amoeba_data = pickle.load(f)
     datum = amoeba_data[idx]
 
