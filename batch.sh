@@ -9,37 +9,31 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --export=ALL
-#SBATCH --time 03:00:00
+#SBATCH --time 12:00:00
+#SBATCH --array=0-122
 
-# check if this is already a task
-if [[ "$SLURM_ARRAY_TASK_ID" == "" ]]; then
-    # if not, then we need to figure out what pixels are left to fit
-
-    # get pixel ids of data
-    idxs=()
-    for datafile in amoeba_data/*.pkl; do
-        idxs+=(`echo "$datafile" | awk -F'[_.]' '{ print $4 }'`)
-    done
-
-    # remove completed pixels
-    for resultfile in results/*.pkl; do
-        idx=`echo "$resultfile" | awk -F'[_.]' '{ print $2 }'`
-        for i in "${!idxs[@]}"; do
-            if [[ ${idxs[i]} = $idx ]]; then
-                unset 'idxs[i]'
-            fi
-        done
-    done
-
-    # Relaunch this script as an array
-    array=`echo ${idxs[@]:0:200} | tr ' ' ','`
-    exec sbatch --array="$array" $0
-fi
+# there are 1228 pixels to fit
+# That's 123 jobs in groups of 10
+PER_JOB=10
+START_IDX=$(( $SLURM_ARRAY_TASK_ID * $PER_JOB ))
+END_IDX=$(( ( $SLURM_ARRAY_TASK_ID + 1 ) * $PER_JOB ))
 
 eval "$(conda shell.bash hook)"
 conda activate amoeba2
 
-# temporary pytensor compiledir
-tmpdir=`mktemp -d`
-PYTENSOR_FLAGS="base_compiledir=$tmpdir" python fit_G049_slurm.py $SLURM_ARRAY_TASK_ID
-rm -rf $tmpdir
+for (( idx=$START_IDX; idx<$END_IDX; idx++ )); do
+    # check if data file does not exist, then skip
+    if [ ! -f "amoeba_data/amoeba_data_$idx.pkl" ]; then
+        continue
+    fi
+
+    # check if result already exists, then skip
+    if [ -f "results/result_$idx.pkl" ]; then
+        continue
+    fi
+
+    # temporary pytensor compiledir
+    tmpdir=`mktemp -d`
+    PYTENSOR_FLAGS="base_compiledir=$tmpdir" python fit_G049_slurm.py $idx
+    rm -rf $tmpdir
+done
