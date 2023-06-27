@@ -9,7 +9,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --export=ALL
-#SBATCH --time 02:00:00
+#SBATCH --time 03:00:00
 
 # check if this is already a task
 if [[ "$SLURM_ARRAY_TASK_ID" == "" ]]; then
@@ -32,7 +32,7 @@ if [[ "$SLURM_ARRAY_TASK_ID" == "" ]]; then
     done
 
     # Relaunch this script as an array
-    array=`echo ${idxs[@]} | tr ' ' ','`
+    array=`echo ${idxs[@]:0:200} | tr ' ' ','`
     exec sbatch --array="$array" $0
 fi
 
