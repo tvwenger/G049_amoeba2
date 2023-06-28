@@ -10,7 +10,6 @@ from amoeba2.model import predict_tau_spectrum
 import matplotlib.pyplot as plt
 import numpy as np
 import pickle
-from astropy.io import fits
 import multiprocessing as mp
 import time
 from spectral_cube import SpectralCube
@@ -19,7 +18,7 @@ from spectral_cube import SpectralCube
 def worker(datum):
     try:
         # Initialize amoeba
-        amoeba = Amoeba(max_n_gauss=10, verbose=False, seed=1234)
+        amoeba = Amoeba(max_n_gauss=10, verbose=True, seed=1234)
         amoeba.set_prior("center", "normal", np.array([65.0, 2.0]))
         amoeba.set_prior("log10_fwhm", "normal", np.array([0.0, 0.33]))
         amoeba.set_prior("peak_tau", "normal", np.array([0.0, 0.05]))
@@ -29,7 +28,7 @@ def worker(datum):
         amoeba.set_data(datum["data"])
 
         # sample
-        amoeba.fit_best(tune=500, draws=500, chains=4, cores=1)
+        amoeba.fit_best(tune=500, draws=500, chains=4, cores=4)
 
         # save mean point estimate
         if amoeba.best_model is not None:
@@ -86,12 +85,8 @@ def main():
         if wcs is None:
             wcs = cont.wcs
 
-        # continuum subtract
-        contsub = cube - cont
-
         # optical depth
-        tau = contsub / cont.filled_data[:]
-        tau = tau.unitless_filled_data[:]
+        tau = -np.log(cube / cont)
 
         # estimate optical depth rms over line-free channels
         tau_line_free = np.concatenate([tau[:200], tau[600:]])
@@ -116,7 +111,11 @@ def main():
 
     # mask pixels where any transition has spectral rms > 0.10
     mask = np.any(
-        [data[transition]["tau_rms"] > 0.10 for transition in transitions], axis=0
+        [
+            np.isnan(data[transition]["tau_rms"]) | (data[transition]["tau_rms"] > 0.10)
+            for transition in transitions
+        ],
+        axis=0,
     )
 
     # for the unmasked pixels, remove a baseline and store the coordinates and
@@ -126,7 +125,8 @@ def main():
         datum = {"coord": coord, "data": AmoebaData()}
         for transition in transitions:
             spec = data[transition]["tau"][:, *coord]
-            datum["tau_original"] = spec
+            if np.any(np.isnan(spec)):
+                print(coord)
 
             # identify line-free channels with 2-sigma threshold
             line_free = np.where(
@@ -136,15 +136,18 @@ def main():
             # fifth order baseline fit
             coeff = np.polyfit(line_free, spec[line_free], deg=5)
             fit = np.polyval(coeff, np.arange(len(spec)))
+            spec = spec - fit
 
-            # keep only relevant channel range
-            keep = (data[transition]["velocity"] > 50.0) * (
-                data[transition]["velocity"] < 80.0
+            # keep only relevant channel range and no nan data
+            keep = (
+                (data[transition]["velocity"] > 50.0)
+                * (data[transition]["velocity"] < 80.0)
+                * ~np.isnan(spec)
             )
             datum["data"].set_spectrum(
                 transition,
                 data[transition]["velocity"][keep],
-                (spec - fit)[keep],
+                spec[keep],
                 data[transition]["tau_rms"][*coord],
             )
         amoeba_data.append(datum)
@@ -155,24 +158,27 @@ def main():
 
     # dump each data file to disk
     for i, datum in enumerate(amoeba_data):
-        with open(f"/data/vla/amoeba_G049/amoeba_data_{i}.pkl", "wb") as f:
+        with open(f"/data/vla/amoeba_G049/amoeba_data/amoeba_data_{i}.pkl", "wb") as f:
             pickle.dump(datum, f)
 
     # plot average of spectra weighted by rms
     fig, ax = plt.subplots()
     for transition in transitions:
-        spectra = np.array(
-            [foo["data"].spectra[transition].spectrum for foo in amoeba_data]
-        )
-        weights = (
-            1.0
-            / np.array([foo["data"].spectra[transition].rms for foo in amoeba_data])
-            ** 2.0
-        )
-        avg_spec = np.average(spectra, weights=weights, axis=0)
+        velocity = amoeba_data[0]["data"].spectra[transition].velocity
+        weight_sum = np.zeros_like(velocity)
+        spec_sum = np.zeros_like(velocity)
+        for datum in amoeba_data:
+            weight = 1.0 / datum["data"].spectra[transition].rms ** 2.0
+            for i, vel in enumerate(velocity):
+                idx = np.argmin(
+                    np.abs(datum["data"].spectra[transition].velocity - vel)
+                )
+                weight_sum[i] += weight
+                spec_sum[i] += weight * datum["data"].spectra[transition].spectrum[idx]
+        spec = spec_sum / weight_sum
         ax.plot(
-            amoeba_data[0]["data"].spectra[transition].velocity,
-            avg_spec,
+            velocity,
+            spec,
             linestyle="-",
             label=transition,
         )

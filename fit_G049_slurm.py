@@ -21,26 +21,28 @@ def main(idx):
         # Initialize amoeba
         amoeba = Amoeba(max_n_gauss=10, verbose=False, seed=1234)
         amoeba.set_prior("center", "normal", np.array([65.0, 2.0]))
-        amoeba.set_prior("log10_fwhm", "normal", np.array([0.0, 0.33]))
-        amoeba.set_prior("peak_tau", "normal", np.array([0.0, 0.05]))
+        amoeba.set_prior("log10_fwhm", "normal", np.array([0.5, 0.5]))
+        amoeba.set_prior("peak_tau", "normal", np.array([0.0, 0.5]))
         amoeba.add_likelihood("normal")
 
         # set data
         amoeba.set_data(datum["data"])
 
         # sample
-        amoeba.fit_best(tune=500, draws=500, chains=4, cores=1)
+        amoeba.fit_all(tune=500, draws=500, chains=4, cores=4)
 
-        # save mean point estimate
-        if amoeba.best_model is not None:
-            point_estimate = amoeba.best_model.point_estimate()
-            lnlike = amoeba.best_model.lnlike_mean_point_estimate()
-            return {
-                "coord": datum["coord"],
+        # save stats for all models
+        results = {"coord": datum["coord"]}
+        for n_gauss in amoeba.models.keys():
+            point_estimate = amoeba.models[n_gauss].point_estimate()
+            lnlike = amoeba.models[n_gauss].lnlike_mean_point_estimate()
+            bic = amoeba.models[n_gauss].bic()
+            results[n_gauss] = {
                 "point_estimate": point_estimate,
                 "lnlike": lnlike,
+                "bic": bic,
             }
-        return None
+        return results
 
     except Exception as ex:
         return {"coord": datum["coord"], "exception": ex}

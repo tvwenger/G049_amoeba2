@@ -7,14 +7,15 @@
 #SBATCH --mail-user=twenger2@wisc.edu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=1
+#SBATCH --cpus-per-task=4
 #SBATCH --export=ALL
 #SBATCH --time 12:00:00
-#SBATCH --array=0-122
+#SBATCH --array=0-59
 
-# there are 1228 pixels to fit
-# That's 123 jobs in groups of 10
-PER_JOB=10
+# there are 891 pixels to fit
+# That's 60 jobs in groups of 15
+# 
+PER_JOB=15
 START_IDX=$(( $SLURM_ARRAY_TASK_ID * $PER_JOB ))
 END_IDX=$(( ( $SLURM_ARRAY_TASK_ID + 1 ) * $PER_JOB ))
 
