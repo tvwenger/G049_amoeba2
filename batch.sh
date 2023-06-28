@@ -25,16 +25,19 @@ conda activate amoeba2
 for (( idx=$START_IDX; idx<$END_IDX; idx++ )); do
     # check if data file does not exist, then skip
     if [ ! -f "amoeba_data/amoeba_data_$idx.pkl" ]; then
+        echo "amoeba_data/amoeba_data_$idx.pkl not found!"
         continue
     fi
 
     # check if result already exists, then skip
     if [ -f "results/result_$idx.pkl" ]; then
+        echo "results/result_$idx.pkl already exists!"
         continue
     fi
 
     # temporary pytensor compiledir
     tmpdir=`mktemp -d`
+    echo "starting to analyze amoeba_data/amoeba_data_$idx.pkl"
     PYTENSOR_FLAGS="base_compiledir=$tmpdir" python fit_G049_slurm.py $idx
     rm -rf $tmpdir
 done
