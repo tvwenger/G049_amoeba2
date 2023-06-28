@@ -33,15 +33,17 @@ def main(idx):
 
         # save stats for all models
         results = {"coord": datum["coord"]}
+        results[0] = {"bic": amoeba.models[1].null_bic()}
         for n_gauss in amoeba.models.keys():
-            point_estimate = amoeba.models[n_gauss].point_estimate()
-            lnlike = amoeba.models[n_gauss].lnlike_mean_point_estimate()
-            bic = amoeba.models[n_gauss].bic()
-            results[n_gauss] = {
-                "point_estimate": point_estimate,
-                "lnlike": lnlike,
-                "bic": bic,
-            }
+            if amoeba.models[n_gauss].trace is not None:
+                point_estimate = amoeba.models[n_gauss].point_estimate()
+                lnlike = amoeba.models[n_gauss].lnlike_mean_point_estimate()
+                bic = amoeba.models[n_gauss].bic()
+                results[n_gauss] = {
+                    "point_estimate": point_estimate,
+                    "lnlike": lnlike,
+                    "bic": bic,
+                }
         return results
 
     except Exception as ex:
