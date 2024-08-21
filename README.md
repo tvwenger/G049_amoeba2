@@ -27,3 +27,6 @@ python split_G049_data.py /path/to/data /path/to/output
 The script selects a subset of pixels (those with reliable optical depth measurements) and dumps each pixel into an individual pickle file in `/path/to/output`. Each pickle file contains the velocity axes and optical depth spectra for each transition.
 
 The script `fit_G049.py` runs `amoeba2`'s optimization algorithm on a single pickle file, assumed to exist in a subdirectory `data/` and stores the result in `results/` as individual pickle files. The script `submit_G049.sh` is a SLURM script that we use to analyze each pixel in parallel. SLURM logs are written to `logs/`.
+```
+sbatch submit_G049.sh
+```

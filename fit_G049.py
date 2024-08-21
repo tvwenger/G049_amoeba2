@@ -27,6 +27,10 @@ def main(idx):
     with open(f"data/G049_data_{idx:05d}.pkl", "rb") as f:
         datum = pickle.load(f)
 
+    # load mol_data
+    with open("mol_data.pkl", "rb") as f:
+        mol_data = pickle.load(f)
+
     # get data
     data = {}
     for transition in ["1612", "1665", "1667", "1720"]:
@@ -48,6 +52,7 @@ def main(idx):
             data,  # data dictionary
             max_n_clouds=5,  # maximum number of clouds
             baseline_degree=0,  # polynomial baseline degree
+            mol_data=mol_data,  # molecular data
             seed=1234,  # random seed
             verbose=True,  # verbosity
         )
