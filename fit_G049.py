@@ -1,256 +1,111 @@
-"""
-fit_G049.py
-Run amoeba-2 on the G049 data
-Trey Wenger - June 2023
-"""
-
-from amoeba2.data import AmoebaData
-from amoeba2.amoeba import Amoeba
-from amoeba2.model import predict_tau_spectrum
-import matplotlib.pyplot as plt
-import numpy as np
+import os
+import sys
 import pickle
-import multiprocessing as mp
-import time
-from spectral_cube import SpectralCube
+
+import numpy as np
+
+import pymc as pm
+import bayes_spec
+import amoeba2
+
+from bayes_spec import SpecData, Optimize
+from amoeba2 import TauModel
 
 
-def worker(datum):
+def main(idx):
+    print(f"Starting job on idx = {idx}")
+    print(f"pymc version: {pm.__version__}")
+    print(f"bayes_spec version: {bayes_spec.__version__}")
+    print(f"amoeba2 version: {amoeba2.__version__}")
+    result = {
+        "idx": idx,
+        "exception": "",
+        "results": {},
+    }
+
+    # load data
+    with open(f"data/G049_data_{idx:05d}.pkl", "rb") as f:
+        datum = pickle.load(f)
+
+    # get data
+    data = {}
+    for transition in ["1612", "1665", "1667", "1720"]:
+        # estimate rms
+        med = np.median(datum[f"tau_{transition}"])
+        rms = 1.4826 * np.median(np.abs(datum[f"tau_{transition}"] - med))
+        data[f"tau_{transition}"] = SpecData(
+            datum[f"velocity_{transition}"],
+            datum[f"tau_{transition}"],
+            rms,
+            xlabel=r"$V_{\rm LSR}$ (km s$^{-1}$)",
+            ylabel=r"$\tau_{" + f"{transition}" + r"}$",
+        )
+
     try:
-        # Initialize amoeba
-        amoeba = Amoeba(max_n_gauss=10, verbose=True, seed=1234)
-        amoeba.set_prior("center", "normal", np.array([65.0, 2.0]))
-        amoeba.set_prior("log10_fwhm", "normal", np.array([0.0, 0.33]))
-        amoeba.set_prior("peak_tau", "normal", np.array([0.0, 0.05]))
-        amoeba.add_likelihood("normal")
+        # Initialize optimizer
+        opt = Optimize(
+            TauModel,  # model definition
+            data,  # data dictionary
+            max_n_clouds=5,  # maximum number of clouds
+            baseline_degree=0,  # polynomial baseline degree
+            seed=1234,  # random seed
+            verbose=True,  # verbosity
+        )
 
-        # set data
-        amoeba.set_data(datum["data"])
+        # Define each model
+        opt.add_priors(
+            prior_log10_N_0=[13.0, 1.0],  # mean and width of log10(N_u) prior (cm-2)
+            prior_inv_Tex=[0.1, 1.0],  # mean and width of 1/Tex prior (K-1)
+            prior_fwhm=1.0,  # mode of FWHM line width prior (km/s)
+            prior_velocity=[65.0, 5.0],  # mean and width of velocity prior (km/s)
+            prior_rms_tau=0.05,  # width of optical depth rms prior
+            ordered=False,  # do not assume optically-thin
+        )
+        opt.add_likelihood()
 
-        # sample
-        amoeba.fit_best(tune=500, draws=500, chains=4, cores=4)
+        # optimize
+        fit_kwargs = {
+            "rel_tolerance": 0.01,
+            "abs_tolerance": 0.1,
+            "learning_rate": 1e-2,
+        }
+        sample_kwargs = {
+            "chains": 4,
+            "cores": 4,
+            "init_kwargs": fit_kwargs,
+            "nuts_kwargs": {"target_accept": 0.8},
+        }
+        opt.optimize(bic_threshold=10.0, sample_kwargs=sample_kwargs, fit_kwargs=fit_kwargs, approx=True)
 
-        # save mean point estimate
-        if amoeba.best_model is not None:
-            point_estimate = amoeba.best_model.point_estimate()
-            lnlike = amoeba.best_model.lnlike_mean_point_estimate()
-            return {
-                "coord": datum["coord"],
-                "point_estimate": point_estimate,
-                "lnlike": lnlike,
-            }
-        return None
+        # save BICs and results for each model
+        results = {0: {"bic": opt.best_model.null_bic()}}
+        for n_gauss, model in opt.models.items():
+            results[n_gauss] = {}
+            if len(model.solutions) > 1:
+                results[n_gauss]["exception"] = "multiple solutions"
+            elif len(model.solutions) == 1:
+                results[n_gauss]["bic"] = model.bic(solution=0)
+                results[n_gauss]["summary"] = pm.summary(model.trace.solution_0)
+            else:
+                results[n_gauss]["exception"] = "no solution"
+        result["results"] = results
+        return result
 
     except Exception as ex:
-        return {"coord": datum["coord"], "exception": ex}
+        result["exception"] = ex
+        return result
 
 
-def main():
-    transitions = ["1612", "1665", "1667", "1720"]
-    fnames = [
-        "/data/vla/G049.205-0.343.spw36.I.channel.clean.pbcor.image.fits",  # 1612
-        "/data/vla/G049.205-0.343.spw35.I.channel.clean.pbcor.image.fits",  # 1665
-        "/data/vla/G049.205-0.343.spw6.I.channel.clean.pbcor.image.fits",  # 1667
-        "/data/vla/G049.205-0.343.spw5.I.channel.clean.pbcor.image.fits",  # 1720
-    ]
+if __name__ == "__main__":
+    idx = int(sys.argv[1])
+    output = main(idx)
+    if output["exception"] != "":
+        print(output["exception"])
 
-    # storage for WCS
-    wcs = None
-
-    data = {}
-    common_beam = None
-    for transition, fname in zip(transitions, fnames):
-        cube = SpectralCube.read(fname)
-        cube.allow_huge_operations = True
-
-        # chop off edge channels
-        # most of the emission seems to come from 300-700
-        cube = cube[100:-100, :, :]
-
-        # smoothing to common beam
-        if common_beam is None:
-            # worst beam will be at 1612. The channels are basically
-            # the same
-            common_beam = cube.beams[150]
-        else:
-            cube = cube.convolve_to(common_beam)
-
-        # keep only pixel range 300 to 400
-        cube = cube[:, 300:400, 300:400]
-
-        # continuum estimate
-        cont = cube.median(axis=0)
-
-        # save WCS
-        if wcs is None:
-            wcs = cont.wcs
-
-        # optical depth
-        tau = -np.log(cube / cont)
-
-        # estimate optical depth rms over line-free channels
-        tau_line_free = np.concatenate([tau[:200], tau[600:]])
-        med = np.median(tau_line_free, axis=0)
-        rms = 1.4826 * np.median(np.abs(tau_line_free - med), axis=0)
-
-        # save
-        data[transition] = {
-            "tau": tau,
-            "cont": cont,
-            "tau_rms": rms,
-            "velocity": cube.spectral_axis.to("km/s").value,
-        }
-
-    # save data to disk
-    with open("data.pkl", "wb") as f:
-        pickle.dump(data, f)
-
-    # start here if you need to restart to save time
-    with open("data.pkl", "rb") as f:
-        data = pickle.load(f)
-
-    # mask pixels where any transition has spectral rms > 0.10
-    mask = np.any(
-        [
-            np.isnan(data[transition]["tau_rms"]) | (data[transition]["tau_rms"] > 0.10)
-            for transition in transitions
-        ],
-        axis=0,
-    )
-
-    # for the unmasked pixels, remove a baseline and store the coordinates and
-    # an AmoebaData object
-    amoeba_data = []
-    for coord in zip(*np.where(~mask)):
-        datum = {"coord": coord, "data": AmoebaData()}
-        for transition in transitions:
-            spec = data[transition]["tau"][:, *coord]
-            if np.any(np.isnan(spec)):
-                print(coord)
-
-            # identify line-free channels with 2-sigma threshold
-            line_free = np.where(
-                np.abs(spec) < 2.0 * data[transition]["tau_rms"][*coord]
-            )[0]
-
-            # fifth order baseline fit
-            coeff = np.polyfit(line_free, spec[line_free], deg=5)
-            fit = np.polyval(coeff, np.arange(len(spec)))
-            spec = spec - fit
-
-            # keep only relevant channel range and no nan data
-            keep = (
-                (data[transition]["velocity"] > 50.0)
-                * (data[transition]["velocity"] < 80.0)
-                * ~np.isnan(spec)
-            )
-            datum["data"].set_spectrum(
-                transition,
-                data[transition]["velocity"][keep],
-                spec[keep],
-                data[transition]["tau_rms"][*coord],
-            )
-        amoeba_data.append(datum)
-
-    # save data to disk
-    with open("amoeba_data.pkl", "wb") as f:
-        pickle.dump(amoeba_data, f)
-
-    # dump each data file to disk
-    for i, datum in enumerate(amoeba_data):
-        with open(f"/data/vla/amoeba_G049/amoeba_data/amoeba_data_{i}.pkl", "wb") as f:
-            pickle.dump(datum, f)
-
-    # plot average of spectra weighted by rms
-    fig, ax = plt.subplots()
-    for transition in transitions:
-        velocity = amoeba_data[0]["data"].spectra[transition].velocity
-        weight_sum = np.zeros_like(velocity)
-        spec_sum = np.zeros_like(velocity)
-        for datum in amoeba_data:
-            weight = 1.0 / datum["data"].spectra[transition].rms ** 2.0
-            for i, vel in enumerate(velocity):
-                idx = np.argmin(
-                    np.abs(datum["data"].spectra[transition].velocity - vel)
-                )
-                weight_sum[i] += weight
-                spec_sum[i] += weight * datum["data"].spectra[transition].spectrum[idx]
-        spec = spec_sum / weight_sum
-        ax.plot(
-            velocity,
-            spec,
-            linestyle="-",
-            label=transition,
-        )
-    ax.set_xlabel(r"LSR Velocity (km s$^{-1}$)")
-    ax.set_ylabel(r"Optical Depth")
-    ax.legend(loc="best")
-    fig.tight_layout()
-    fig.savefig("avg_spec.pdf", bbox_inches="tight")
-    plt.close(fig)
-
-    # start here if you need to save time
-    with open("amoeba_data.pkl", "rb") as f:
-        amoeba_data = pickle.load(f)
-
-    # storage for results
-    results = {}
-
-    # parallelize over pixels because amoeba-2 is slow...
-    start = time.time()
-    with mp.Pool(processes=mp.cpu_count()) as pool:
-        for i, output in enumerate(pool.imap_unordered(worker, amoeba_data)):
-            # save result
-            if output is not None:
-                results[output["coord"]] = output
-
-            # print status
-            now = time.time()
-            elapsed = now - start
-            time_per = elapsed / (i + 1)
-            num_left = len(amoeba_data) - i - 1
-            time_left = time_per * num_left
-            print("=====================================")
-            print(f"Completed: {i+1}/{len(amoeba_data)}")
-            print(f"Time elapsed: {elapsed/60.0:.2f} min")
-            print(f"Iteration: {time_per/60.0:.2f} min")
-            print(f"Remaining: {time_left/60.0:.2f} min")
-            print("=====================================")
-
-    # save results to disk! should probably do this at every iteration
-    with open("results.pkl", "wb") as f:
-        pickle.dump(results, f)
-
-    # generate FITS header
-    header = wcs.to_header()
-    for key, val in common_beam.to_header_keywords().items():
-        header[key] = val
-
-    # storage for data
-    lnlike = np.ones(data["1612"]["cont"].shape) * np.nan
-    n_gauss = np.ones(data["1612"]["cont"].shape, dtype=int) * np.nan
-    for coord in results.keys():
-        if "exception" in results[coord].keys():
-            print(f"{coord} had an exception: {results[coord]['exception']}")
-        else:
-            lnlike[*coord] = results[coord]["lnlike"]
-            n_gauss[*coord] = len(results[coord]["point_estimate"]["center"]["mean"])
-
-    # plot single spectrum with results
-    coord = (42, 63)
-    fig, axes = plt.subplots(4, sharex=True)
-    for transition, ax in zip(transitions, axes):
-        # plot data
-        ax.plot(data[transition]["velocity"], data[transition]["tau"][:, *coord], "k-")
-
-        # plot fit
-        fit = predict_tau_spectrum(
-            data["1612"]["velocity"][:, None],
-            results[coord]["point_estimate"][f"peak_tau_{transition}"]["mean"],
-            results[coord]["point_estimate"]["center"]["mean"],
-            10.0 ** np.array(results[coord]["point_estimate"]["log10_fwhm"]["mean"]),
-        )
-        ax.plot(data["1612"]["velocity"], fit, "r-", linewidth=2)
-        ax.set_ylabel(r"$\tau_{" + transition + "}$")
-    ax.set_xlabel(r"LSR Velocity (km s$^{-1}$)")
-    fig.show()
+    # save results
+    outdirname = "results"
+    if not os.path.isdir(outdirname):
+        os.mkdir(outdirname)
+    fname = f"{outdirname}/G049_results_{idx:05d}.pkl"
+    with open(fname, "wb") as f:
+        pickle.dump(output, f)

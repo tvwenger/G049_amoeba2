@@ -1,0 +1,12 @@
+name: amoeba2
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - ipython
+  - astropy
+  - spectral-cube
+  - matplotlib
+  - pip
+  - pip:
+    - "amoeba2"
