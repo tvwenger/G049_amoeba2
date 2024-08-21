@@ -3,7 +3,7 @@ Run `amoeba2` on G049 data with SLURM.
 
 ## Installation
 ```bash
-git clone https://github.com/tvwenger/G049_amoeba2
+git clone git@github.com:tvwenger/G049_amoeba2.git
 cd G049_amoeba2
 mkdir data/
 mkdir results/
