@@ -70,6 +70,10 @@ def main(indir="."):
         with open(os.path.join(indir, f"data_{transition}.pkl"), "wb") as f:
             pickle.dump(data, f)
 
+    # save WCS
+    with open(os.path.join(indir, "wcs.pkl"), "wb") as f:
+        pickle.dump(wcs, f)
+
 
 if __name__ == "__main__":
     if len(sys.argv) == 1:

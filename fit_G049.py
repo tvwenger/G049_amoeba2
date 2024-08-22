@@ -1,3 +1,8 @@
+"""fit_G049.py
+Run amoeba2 on single G049 pixel
+Trey V. Wenger - August 2024
+"""
+
 import os
 import sys
 import pickle

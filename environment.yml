@@ -7,6 +7,7 @@ dependencies:
   - astropy
   - spectral-cube
   - matplotlib
+  - cxx-compiler
   - pymc
   - nutpie
   - pip
