@@ -3,14 +3,10 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - ipython
-  - astropy
-  - spectral-cube
-  - matplotlib
-  - cxx-compiler
-  - pytensor
-  - pymc
   - nutpie
   - pip
+  - pymc
+  - pytensor
+  - dill
   - pip:
     - "amoeba2>=1.1.0"

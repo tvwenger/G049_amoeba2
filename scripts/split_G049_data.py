@@ -48,7 +48,8 @@ def main(indir=".", outdir="."):
         for transition in transitions:
             datum[f"velocity_{transition}"] = data[transition]["velocity"]
             datum[f"absorption_{transition}"] = data[transition]["absorption"][:, *coord]
-        with open(os.path.join(outdir, f"G049_data_{idx:05d}.pkl"), "wb") as f:
+            datum[f"absorption_rms_{transition}"] = data[transition]["absorption_rms"][*coord]
+        with open(os.path.join(outdir, f"{idx}.pkl"), "wb") as f:
             pickle.dump(datum, f)
 
 

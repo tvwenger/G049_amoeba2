@@ -7,14 +7,14 @@
 #SBATCH --mail-user=twenger2@wisc.edu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=8
 #SBATCH --export=ALL
 #SBATCH --time 24:00:00
 #SBATCH --array=0-888%175
 
-# 889 spectra = 889 jobs of 1 spectra, limit to 175 tasks to limit resource usage
+# 891 spectra = 891 jobs of 1 spectra, limit to 175 tasks to limit resource usage
 PER_JOB=1
-NUM_SPEC=889
+NUM_SPEC=891
 START_IDX=$(( $SLURM_ARRAY_TASK_ID * $PER_JOB ))
 END_IDX=$(( ( $SLURM_ARRAY_TASK_ID + 1 ) * $PER_JOB ))
 
@@ -26,16 +26,15 @@ for (( idx=$START_IDX; idx<$END_IDX; idx++ )); do
 	    break
     fi
     
-    fmtidx=$(printf "%05d" $idx)
     # check if result already exists, then skip
-    if [ -f "results/G049_results_$fmtidx.pkl" ]; then
-        echo "results/G049_results_$fmtidx.pkl already exists!"
+    if [ -f "results/${idx}_amoeba2.pkl" ]; then
+        echo "results/${idx}_amoeba2.pkl already exists!"
         continue
     fi
 
     # temporary pytensor compiledir
     tmpdir=`mktemp -d`
     echo "starting to analyze $idx"
-    PYTENSOR_FLAGS="base_compiledir=$tmpdir" python fit_G049.py $idx
+    PYTENSOR_FLAGS="base_compiledir=$tmpdir" python fit_G049.py $idx slurm
     rm -rf $tmpdir
 done
