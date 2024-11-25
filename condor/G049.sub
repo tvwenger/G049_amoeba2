@@ -7,7 +7,7 @@ docker_image = tvwenger/amoeba2:v1.1.0
 
 # Executable
 executable = /home/twenger2/G049_amoeba2/scripts/fit_G049.sh
-arguments = $(Process) condor
+arguments = $(Process)
 
 # Data handling
 should_transfer_files = YES
