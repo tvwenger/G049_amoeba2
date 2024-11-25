@@ -8,8 +8,9 @@ dependencies:
   - spectral-cube
   - matplotlib
   - cxx-compiler
+  - pytensor
   - pymc
   - nutpie
   - pip
   - pip:
-    - "amoeba2"
+    - "amoeba2>=1.1.0"
