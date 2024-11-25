@@ -50,20 +50,20 @@ def main(indir="."):
         if wcs is None:
             wcs = cont.wcs
 
-        # optical depth
+        # absorption 1-exp(-tau)
         with warnings.catch_warnings(action="ignore"):
-            tau = -np.log(cube / cont)
+            absorption = 1.0 - cube._data / cont._data
 
         # estimate optical depth rms over line-free channels
-        tau_line_free = np.concatenate([tau[:200], tau[600:]])
-        med = np.nanmedian(tau_line_free, axis=0)
-        rms = 1.4826 * np.nanmedian(np.abs(tau_line_free - med), axis=0)
+        absorption_line_free = np.concatenate([absorption[:200], absorption[600:]])
+        med = np.nanmedian(absorption_line_free, axis=0)
+        rms = 1.4826 * np.nanmedian(np.abs(absorption_line_free - med), axis=0)
 
         # save
         data = {
-            "tau": tau,
+            "absorption": absorption,
             "cont": cont,
-            "tau_rms": rms,
+            "absorption_rms": rms,
             "velocity": cube.spectral_axis.to("km/s").value,
         }
 

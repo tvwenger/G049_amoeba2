@@ -18,14 +18,20 @@ def main(indir=".", outdir="."):
         with open(os.path.join(indir, f"data_{transition}.pkl"), "rb") as f:
             data[transition] = pickle.load(f)
 
-    # keep only those pixels where all transitions have non-nan optical depths
-    mask = np.zeros(data["1612"]["cont"].shape, dtype=bool)
-    for transition in transitions:
-        mask += np.any(np.isnan(data[transition]["tau"]), axis=0)
+    # keep only those pixels where cont > n_sigma*sigma
+    n_sigma = 3
+    med = np.nanmedian(data["1612"]["cont"])
+    rms = 1.4826 * np.nanmedian(np.abs(data["1612"]["cont"] - med))
+    print(f"1612 MHz Continuum rms: {rms:.3f} Jy/beam")
+    mask = data["1612"]["cont"] < (n_sigma * rms)
+    print(f"Image contains {mask.size} pixels")
+    print(f"Masking {mask.sum()} pixels with continuum < {n_sigma} sigma")
 
-    # keep only those pixels where the optical depth rms is <0.1
+    # keep only those pixels where the absorption rms is <0.1
     for transition in transitions:
-        mask += data[transition]["tau_rms"] > 0.1
+        new_mask = data[transition]["absorption_rms"] > 0.1
+        print(f"Masking {new_mask.sum()} pixels with {transition} MHz rms > 0.1")
+        mask += new_mask
     print(f"There are {(~mask).sum()} unmasked pixels")
 
     # split up spectra and save
@@ -35,10 +41,13 @@ def main(indir=".", outdir="."):
         os.remove(file)
 
     for idx, coord in enumerate(zip(*np.where(~mask))):
+        print(idx, coord)
+        if coord == (50, 50):
+            print(f"Middle pixel is idx={idx}")
         datum = {"coord": coord}
         for transition in transitions:
             datum[f"velocity_{transition}"] = data[transition]["velocity"]
-            datum[f"tau_{transition}"] = data[transition]["tau"][:, *coord]
+            datum[f"absorption_{transition}"] = data[transition]["absorption"][:, *coord]
         with open(os.path.join(outdir, f"G049_data_{idx:05d}.pkl"), "wb") as f:
             pickle.dump(datum, f)
 
