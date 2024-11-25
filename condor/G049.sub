@@ -12,7 +12,7 @@ arguments = $(Process)
 # Data handling
 should_transfer_files = YES
 when_to_transfer_output = ON_EXIT
-transfer_input_files = /home/twenger2/G049_amoeba2/scripts/fit_G049.py, /home/twenger2/G049_amoeba2/data/$(Process).pkl
+transfer_input_files = /home/twenger2/G049_amoeba2/scripts/fit_G049.py, /home/twenger2/G049_amoeba2/data/$(Process).pkl, /home/twenger2/G049_amoeba2/mol_data.pkl
 transfer_output_remaps = "$(Process)_amoeba2.pkl = /home/twenger2/G049_amoeba2/results/$(Process)_amoeba2.pkl"
 
 # Logging

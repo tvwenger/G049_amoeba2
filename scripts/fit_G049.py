@@ -28,7 +28,7 @@ def main(idx, infile):
     }
 
     # load data
-    with open(f"data/{idx}.pkl", "rb") as f:
+    with open(infile, "rb") as f:
         datum = pickle.load(f)
 
     # load mol_data
