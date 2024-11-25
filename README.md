@@ -42,7 +42,8 @@ An `amoeba2` docker container is provided via the `Dockerfile`:
 docker build -t tvwenger/amoeba2:v1.1.0 .
 docker push tvwenger/amoeba2:v1.1.0
 ```
-This docker container [should be converted into an Apptainer image](https://chtc.cs.wisc.edu/uw-research-computing/htc-docker-to-apptainer):
+
+Eventually, this docker container [should be converted into an Apptainer image](https://chtc.cs.wisc.edu/uw-research-computing/htc-docker-to-apptainer):
 ```
 condor_submit -i build.sub
 apptainer build amoeba2-v1.1.0.sif docker://tvwenger/amoeba2:v1.1.0
@@ -57,6 +58,13 @@ python fit_G049.py <idx> condor
 The script `G049.sub` is a Condor script that we use to analyze each pixel in parallel. It handles the copying of data and results to `data/` and `results/`, respectively. Condor logs are written to `logs/`.
 ```
 condor_submit limit=1000 G049.sub
+```
+
+Whenever we switch to Apptainer, then we'll have to update the submission script:
+```
+# Provide HTCondor with the name of your .sif file and universe information
+requirements = (HasCHTCStaging == true)
+container_image = file:///staging/twenger2/amoeba2-v1.1.0.sif
 ```
 
 ## Analysis
