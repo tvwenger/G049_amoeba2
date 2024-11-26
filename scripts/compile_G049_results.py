@@ -6,6 +6,7 @@ Trey V. Wenger - August 2024
 import os
 import sys
 import glob
+import copy
 
 import pickle
 import numpy as np
@@ -14,25 +15,69 @@ from astropy.io import fits
 import matplotlib.pyplot as plt
 
 
-def make_cube(results, wcs, label, filename, n_gauss="best", plot="summary", plot_key="velocity[0]", plot_stat="mean"):
+def get_best_model(result, bic_threshold=10.0):
+    """Determine the best amoeba2 result, and return the best solution."""
+    # keep only best model
+    best_bic = np.inf
+    best_n_gauss = 0
+    best_solution = 0
+    best_num_solutions = 0
+
+    # check all models
+    for n_gauss in result["results"].keys():
+        this_bic = np.inf
+        this_solution = None
+        this_num_solutions = 0
+        if "bic" in result["results"][n_gauss]:
+            this_bic = result["results"][n_gauss]["bic"]
+
+        # check all solutions
+        if "solutions" in result["results"][n_gauss].keys():
+            this_num_solutions = len(result["results"][n_gauss]["solutions"])
+            for solution in result["results"][n_gauss]["solutions"].keys():
+                converged = result["results"][n_gauss]["solutions"][solution]["converged"]
+                bic = result["results"][n_gauss]["solutions"][solution]["bic"]
+                if converged and bic <= this_bic:
+                    this_bic = bic
+                    this_solution = solution
+
+        # compare to current best model
+        if np.isinf(best_bic) or this_bic < (best_bic - bic_threshold):
+            best_bic = this_bic
+            best_n_gauss = n_gauss
+            best_solution = this_solution
+            best_num_solutions = this_num_solutions
+
+    # return best model
+    compiled_result = copy.deepcopy(result)
+    if best_n_gauss in result["results"].keys():
+        compiled_result["results"] = result["results"][best_n_gauss]
+        if "solutions" in result["results"][best_n_gauss].keys() and best_solution is not None:
+            compiled_result["results"] = result["results"][best_n_gauss]["solutions"][best_solution]
+            return compiled_result, best_bic, best_n_gauss, best_num_solutions
+
+    # no good model
+    return None, best_bic, best_n_gauss, best_num_solutions
+
+
+def make_cube(results, wcs, label, filename, plot="summary", plot_key="velocity[0]", plot_stat="mean"):
     cube_size = (100, 100)
     bic_threshold = 10.0
     data = np.ones(cube_size) * np.nan
 
     for coord, result in results.items():
         # get best model
-        bics = np.array([result["results"][i].get("bic", np.inf) for i in result["results"].keys()])
-        n = n_gauss
-        if n_gauss == "best":
-            min_bic = bics.min()
-            idx = np.where(bics < min_bic + bic_threshold)[0][0]
-            n = list(result["results"].keys())[idx]
-        if plot == "n_gauss":
-            data[coord] = n
+        result, best_bic, best_n_gauss, best_num_solutions = get_best_model(result, bic_threshold=bic_threshold)
+        if result is None:
+            data[coord] = np.nan
+        elif plot == "n_gauss":
+            data[coord] = best_n_gauss
         elif plot == "bic":
-            data[coord] = bics[n]
-        elif plot in result["results"][n].keys():
-            data[coord] = result["results"][n][plot][plot_stat][plot_key]
+            data[coord] = best_bic
+        elif plot == "n_solutions":
+            data[coord] = best_num_solutions
+        elif plot in result["results"].keys():
+            data[coord] = result["results"][plot][plot_stat][plot_key]
         else:
             data[coord] = np.nan
 
@@ -60,23 +105,22 @@ def plot_cloud(results, keyx, labelx, keyy, labely, filename):
     clouds = []
     for _, result in results.items():
         # get best model
-        bics = np.array([result["results"][i].get("bic", np.inf) for i in result["results"].keys()])
-        min_bic = bics.min()
-        idx = np.where(bics < min_bic + bic_threshold)[0][0]
-        n = list(result["results"].keys())[idx]
+        result, best_bic, best_n_gauss, best_num_solutions = get_best_model(result, bic_threshold=bic_threshold)
+        if result is None:
+            continue
 
-        if "summary" in result["results"][n].keys():
-            for i in range(n):
+        if "summary" in result["results"].keys():
+            for i in range(best_n_gauss):
                 mykeyx = keyx + f"[{i}]"
                 if "]" in keyx:
                     mykeyx = keyx.replace("]", f", {i}]")
                 mykeyy = keyy + f"[{i}]"
                 if "]" in keyy:
                     mykeyy = keyy.replace("]", f", {i}]")
-                datax.append(result["results"][n]["summary"]["mean"][mykeyx])
-                errx.append(result["results"][n]["summary"]["sd"][mykeyx])
-                datay.append(result["results"][n]["summary"]["mean"][mykeyy])
-                erry.append(result["results"][n]["summary"]["sd"][mykeyy])
+                datax.append(result["results"]["summary"]["mean"][mykeyx])
+                errx.append(result["results"]["summary"]["sd"][mykeyx])
+                datay.append(result["results"]["summary"]["mean"][mykeyy])
+                erry.append(result["results"]["summary"]["sd"][mykeyy])
                 clouds.append(i)
 
     fig, ax = plt.subplots(layout="constrained")
@@ -103,36 +147,25 @@ def main(wcsfile="wcs.pkl", datadir=".", resultsdir="."):
     for datafile in datafiles:
         with open(datafile, "rb") as f:
             data = pickle.load(f)
-        basename = os.path.basename(datafile)
-        resultfile = os.path.join(resultsdir, basename.replace("_data", "_results"))
+        idx = os.path.basename(datafile).replace(".pkl", "")
+        resultfile = os.path.join(resultsdir, f"{idx}_amoeba2.pkl")
         with open(resultfile, "rb") as f:
             result = pickle.load(f)
         results[data["coord"]] = result
 
     # Generate maps
-    make_cube(results, wcs, "Min. BIC", "min_bic", n_gauss="best", plot="bic")
-    make_cube(results, wcs, "Num. Clouds", "num_clouds", n_gauss="best", plot="n_gauss")
-    for transition in ["1612", "1665", "1667", "1720"]:
-        make_cube(
-            results,
-            wcs,
-            r"rms$_{\tau, " + transition + r"}$",
-            f"rms_{transition}",
-            n_gauss="best",
-            plot="summary",
-            plot_key=f"rms_tau[{transition}]",
-            plot_stat="mean",
-        )
-    fnames = ["fwhm_0", "velocity_0", "log10_N_0_0"]
-    keys = ["fwhm[0]", "velocity[0]", "log10_N_0[0]"]
-    labels = [r"$\Delta V$[0] (km s$^{-1}$)", r"$V_{\rm LSR}$[0] (km s$^{-1}$)", r"$\log_{10} N_0$[0] (cm$^{-2}$)"]
+    make_cube(results, wcs, "Min. BIC", "min_bic", plot="bic")
+    make_cube(results, wcs, "Num. Clouds", "num_clouds", plot="n_gauss")
+    make_cube(results, wcs, "Num. Solutions", "num_solutions", plot="n_solutions")
+    fnames = ["fwhm_0", "velocity_0", "tau_1665_0"]
+    keys = ["fwhm[0]", "velocity[0]", "tau_1665[0]"]
+    labels = [r"$\Delta V$[0] (km s$^{-1}$)", r"$V_{\rm LSR}$[0] (km s$^{-1}$)", r"$\tau_{1665}$[0]"]
     for fname, key, label in zip(fnames, keys, labels):
         make_cube(
             results,
             wcs,
             label,
             fname,
-            n_gauss="best",
             plot="summary",
             plot_key=key,
             plot_stat="mean",
@@ -142,7 +175,6 @@ def main(wcsfile="wcs.pkl", datadir=".", resultsdir="."):
             wcs,
             "Err. " + label,
             fname + "_sd",
-            n_gauss="best",
             plot="summary",
             plot_key=key,
             plot_stat="sd",
@@ -151,29 +183,31 @@ def main(wcsfile="wcs.pkl", datadir=".", resultsdir="."):
     # Generate cloud plots
     plot_cloud(
         results,
-        "log10_N_0",
-        r"$\log_{10} N_0$ (cm$^{-2}$)",
-        "velocity",
-        r"$V_{\rm LSR}$ (km s$^{-1}$)",
-        "log10_N_0_vs_velocity",
-    )
-    plot_cloud(
-        results,
         "fwhm",
         r"$\Delta V$ (km s$^{-1}$)",
         "velocity",
         r"$V_{\rm LSR}$ (km s$^{-1}$)",
         "fwhm_vs_velocity",
     )
-    for transition in ["1612", "1665", "1667", "1720"]:
+    transitions = ["1612", "1665", "1667", "1720"]
+    for i, transition in enumerate(transitions):
         plot_cloud(
             results,
             "velocity",
             r"$V_{\rm LSR}$ (km s$^{-1}$)",
-            f"inv_Tex[{transition}]",
-            r"$T_{\rm ex, " + transition + r"}$ (K$^{-1}$)",
-            f"velocity_vs_inv_Tex_{transition}",
+            f"tau_{transition}",
+            r"$\tau_{" + transition + r"}$",
+            f"velocity_vs_tau_{transition}",
         )
+        for other_transition in transitions[i + 1 :]:
+            plot_cloud(
+                results,
+                f"tau_{transition}",
+                r"$\tau_{" + transition + r"}$",
+                f"tau_{other_transition}",
+                r"$\tau_{" + other_transition + r"}$",
+                f"tau_{transition}_vs_tau_{other_transition}",
+            )
 
 
 if __name__ == "__main__":
