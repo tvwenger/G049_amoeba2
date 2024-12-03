@@ -1,0 +1,29 @@
+# HTC Submit File
+# G024 amoeba2 analysis
+
+# Docker container
+universe = docker
+docker_image = tvwenger/amoeba2:v1.1.0
+
+# Executable
+executable = /home/twenger2/G049_amoeba2/scripts/fit_G024.sh
+arguments = $(Process)
+
+# Data handling
+should_transfer_files = YES
+when_to_transfer_output = ON_EXIT
+transfer_input_files = /home/twenger2/G049_amoeba2/scripts/fit_G024.py, /home/twenger2/G049_amoeba2/G024/$(Process).pkl, /home/twenger2/G049_amoeba2/mol_data.pkl
+transfer_output_remaps = "$(Process)_amoeba2.pkl = /home/twenger2/G049_amoeba2/G024_results/$(Process)_amoeba2.pkl"
+
+# Logging
+log = /home/twenger2/G049_amoeba2/logs/amoeba2_$(Cluster)_$(Process).log
+error = /home/twenger2/G049_amoeba2/logs/amoeba2_$(Cluster)_$(Process).err
+output = /home/twenger2/G049_amoeba2/logs/amoeba2_$(Cluster)_$(Process).out
+
+# Resource request
+request_cpus = 8
+request_memory = 4GB
+request_disk = 1GB
+
+# Up to 1000 spectra
+queue $(limit)
