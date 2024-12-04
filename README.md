@@ -25,6 +25,16 @@ python split_G049_data.py /path/to/G049_fits_images/ /path/to/individual_data_pi
 ```
 The script selects a subset of pixels (those with sufficient signal-to-noise) and dumps each pixel into an individual pickle file in `/path/to/individual_data_pickle_files/`. Each pickle file contains the velocity axes and absorption (`1-exp(-tau)`) spectra for each transition.
 
+N.B. For G024 and G034:
+```
+python extract_G024_G034_data.py /path/to/data/
+```
+outputs pickle files like `G024_1612.pkl` containing the trimmed data, `G024_wcs.pkl` containing the WCS, and some FITS images of the continuum and estimated spectral rms. Similarly
+```
+python split_G024_G034_data.py /path/to/data/
+```
+Outputs spectra per pixel into `/path/to/data/G024/` and `/path/to/data/G034/`
+
 ## Parallel processing with SLURM
 The script `fit_G049.py` runs `amoeba2`'s optimization algorithm on a single pickle file. With SLURM, the data are assumed to be in `data/` and the results go in `results/` as individual pickle files.
 ```
@@ -67,11 +77,14 @@ requirements = (HasCHTCStaging == true)
 container_image = file:///staging/twenger2/amoeba2-v1.1.0.sif
 ```
 
+N.B. Similar scripts exist for G024 and G034, where the data are expected to be in `G024/` and `G034/` and the results go into `G024_results/` and `G034_results/`.
+
 ## Analysis
-Finally, the script `compile_G049_results.py` compiles the results into some FITS images and graphics.
+Finally, the script `compile_results.py` compiles the results into some FITS images, png graphics, and CSV tables. e.g.,
 ```
-mkdir fits/
-mkdir figures/
-python compile_G049_results.py /path/to/wcs.pkl /path/to/individual_data_pickle_files/ /path/to/individual_results_pickle_files/
+# python compile_results.py <wcs_file> <datadir> <source> <bic_threshold> <outdir>
+python compile_results.py /path/to/G049_wcs.pkl /path/to/data/ G049 10.0 outdir/
 ```
-This script outputs several images to `fits/` and `figures/`. 
+This script outputs several files to `outdir/`.
+
+In particular, the file `G049_cloud_params.csv` contains the cloud parameters in tabular format. This is useful for visualization in software like [glue](https://docs.glueviz.org/en/stable/).

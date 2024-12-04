@@ -16,10 +16,18 @@ from spectral_cube import SpectralCube
 def main(indir="."):
     transitions = ["1612", "1665", "1667", "1720"]
     fnames = [
-        os.path.join(indir, "G049.205-0.343.spw36.I.channel.clean.pbcor.image.fits"),  # 1612
-        os.path.join(indir, "G049.205-0.343.spw35.I.channel.clean.pbcor.image.fits"),  # 1665
-        os.path.join(indir, "G049.205-0.343.spw6.I.channel.clean.pbcor.image.fits"),  # 1667
-        os.path.join(indir, "G049.205-0.343.spw5.I.channel.clean.pbcor.image.fits"),  # 1720
+        os.path.join(
+            indir, "G049.205-0.343.spw36.I.channel.clean.pbcor.image.fits"
+        ),  # 1612
+        os.path.join(
+            indir, "G049.205-0.343.spw35.I.channel.clean.pbcor.image.fits"
+        ),  # 1665
+        os.path.join(
+            indir, "G049.205-0.343.spw6.I.channel.clean.pbcor.image.fits"
+        ),  # 1667
+        os.path.join(
+            indir, "G049.205-0.343.spw5.I.channel.clean.pbcor.image.fits"
+        ),  # 1720
     ]
 
     # storage for WCS
@@ -45,6 +53,11 @@ def main(indir="."):
 
         # continuum estimate
         cont = cube.median(axis=0)
+        cont.write(
+            os.path.join(indir, f"G049_{transition}_cont.fits"),
+            format="fits",
+            overwrite=True,
+        )
 
         # save WCS
         if wcs is None:
@@ -53,6 +66,12 @@ def main(indir="."):
         # absorption 1-exp(-tau)
         with warnings.catch_warnings(action="ignore"):
             absorption = 1.0 - cube._data / cont._data
+        absorption_cube = SpectralCube(data=absorption, wcs=cube.wcs)
+        absorption_cube.write(
+            os.path.join(indir, f"G049_{transition}_absorption.fits"),
+            format="fits",
+            overwrite=True,
+        )
 
         # estimate optical depth rms over line-free channels
         absorption_line_free = np.concatenate([absorption[:200], absorption[600:]])
@@ -70,8 +89,16 @@ def main(indir="."):
         with open(os.path.join(indir, f"data_{transition}.pkl"), "wb") as f:
             pickle.dump(data, f)
 
+        # save rms
+        cont.data = rms
+        cont.write(
+            os.path.join(indir, f"G049_{transition}_rms.fits"),
+            format="fits",
+            overwrite=True,
+        )
+
     # save WCS
-    with open(os.path.join(indir, "wcs.pkl"), "wb") as f:
+    with open(os.path.join(indir, "G049_wcs.pkl"), "wb") as f:
         pickle.dump(wcs, f)
 
 
